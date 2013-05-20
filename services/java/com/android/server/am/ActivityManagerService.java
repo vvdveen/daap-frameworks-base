@@ -2965,11 +2965,11 @@ public final class ActivityManagerService extends ActivityManagerNative
                 Settings.Secure.ANR_SHOW_BACKGROUND, 0) != 0;
         
         synchronized (this) {
-            if (!showBackground && !app.isInterestingToUserLocked() && app.pid != MY_PID) {
-                killProcess(app, app.pid);
-                return;
-            }
-    
+            // Actually, as we are doing automated dynamic analysis. Just always
+            // kill an app if it is not responding.
+            killProcess(app, app.pid);
+            return;
+/* 
             // Set the app's notResponding state, and look up the errorReportReceiver
             makeAppNotRespondingLocked(app,
                     activity != null ? activity.shortComponentName : null,
@@ -2987,6 +2987,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
     
             mHandler.sendMessage(msg);
+ */
         }
     }
 

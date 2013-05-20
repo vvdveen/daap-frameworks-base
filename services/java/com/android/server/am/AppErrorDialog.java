@@ -36,7 +36,8 @@ class AppErrorDialog extends BaseErrorDialog {
     static final int FORCE_QUIT_AND_REPORT = 1;
 
     // 5-minute timeout, then we automatically dismiss the crash dialog
-    static final long DISMISS_TIMEOUT = 1000 * 5;
+    // Changed to 1s
+    static final long DISMISS_TIMEOUT = 1000 * 1;
     
     public AppErrorDialog(Context context, AppErrorResult result, ProcessRecord app) {
         super(context);
