@@ -220,7 +220,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     static final int CPU_MIN_CHECK_DURATION = (DEBUG_POWER_QUICK ? 1 : 5) * 60*1000;
 
     // How long we allow a receiver to run before giving up on it.
-    static final int BROADCAST_TIMEOUT = 10*1000;
+    static final int BROADCAST_TIMEOUT = 20*1000;
 
     // How long we wait for a service to finish executing.
     static final int SERVICE_TIMEOUT = 20*1000;
@@ -248,7 +248,7 @@ public final class ActivityManagerService extends ActivityManagerNative
     static final int MAX_SERVICE_INACTIVITY = 30*60*1000;
     
     // How long we wait until we timeout on key dispatching.
-    static final int KEY_DISPATCHING_TIMEOUT = 5*1000;
+    static final int KEY_DISPATCHING_TIMEOUT = 10*1000;
 
     // The minimum time we allow between crashes, for us to consider this
     // application to be bad and stop and its services and reject broadcasts.
@@ -2822,6 +2822,27 @@ public final class ActivityManagerService extends ActivityManagerNative
         }
     }
 
+    private static final void stopProfiler(ProcessRecord proc) {
+        // We could add a test here to test whether this proc.uid is currently
+        // being profiled. 
+        if (proc != null && proc.thread != null) {
+            try {
+                proc.thread.profilerControl(false, null, null);
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    private static final void killProcess(ProcessRecord proc, int pid) {
+        stopProfiler(proc);
+        Process.killProcess(pid);
+    }
+
+    private static final void killProcessQuiet(ProcessRecord proc, int pid) {
+        stopProfiler(proc);
+        Process.killProcessQuiet(pid);
+    }
+
     final void appNotResponding(ProcessRecord app, ActivityRecord activity,
             ActivityRecord parent, final String annotation) {
         ArrayList<Integer> firstPids = new ArrayList<Integer>(5);
@@ -2831,7 +2852,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             try {
                 // 0 == continue, -1 = kill process immediately
                 int res = mController.appEarlyNotResponding(app.processName, app.pid, annotation);
-                if (res < 0 && app.pid != MY_PID) Process.killProcess(app.pid);
+                if (res < 0 && app.pid != MY_PID) killProcess(app, app.pid);
             } catch (RemoteException e) {
                 mController = null;
             }
@@ -2931,7 +2952,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                 // 0 == show dialog, 1 = keep waiting, -1 = kill process immediately
                 int res = mController.appNotResponding(app.processName, app.pid, info.toString());
                 if (res != 0) {
-                    if (res < 0 && app.pid != MY_PID) Process.killProcess(app.pid);
+                    if (res < 0 && app.pid != MY_PID) killProcess(app, app.pid);
                     return;
                 }
             } catch (RemoteException e) {
@@ -2945,7 +2966,7 @@ public final class ActivityManagerService extends ActivityManagerNative
         
         synchronized (this) {
             if (!showBackground && !app.isInterestingToUserLocked() && app.pid != MY_PID) {
-                Process.killProcess(app.pid);
+                killProcess(app, app.pid);
                 return;
             }
     
@@ -3354,7 +3375,7 @@ public final class ActivityManagerService extends ActivityManagerNative
             }
             handleAppDiedLocked(app, true);
             mLruProcesses.remove(app);
-            Process.killProcess(pid);
+            killProcess(app, pid);
             
             if (app.persistent) {
                 if (!callerWillRestart) {
@@ -3403,7 +3424,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                     bringDownServiceLocked(sr, true);
                 }
             }
-            Process.killProcess(pid);
+            killProcess(app, pid);
             if (mBackupTarget != null && mBackupTarget.app.pid == pid) {
                 Slog.w(TAG, "Unattached app died before backup, skipping");
                 try {
@@ -3449,7 +3470,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                     + " (IApplicationThread " + thread + "); dropping process");
             EventLog.writeEvent(EventLogTags.AM_DROP_PROCESS, pid);
             if (pid > 0 && pid != MY_PID) {
-                Process.killProcess(pid);
+                killProcess(app, pid);
             } else {
                 try {
                     thread.scheduleExit();
@@ -5960,7 +5981,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             proc.processName, adj, reason);
                     killed = true;
                     proc.killedBackground = true;
-                    Process.killProcessQuiet(pids[i]);
+                    killProcessQuiet(proc, pids[i]);
                 }
             }
         }
@@ -6356,7 +6377,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         + app.processName + " (pid=" + app.pid + "): user's request");
                 EventLog.writeEvent(EventLogTags.AM_KILL, app.pid,
                         app.processName, app.setAdj, "user's request after error");
-                Process.killProcess(app.pid);
+                killProcess(app, app.pid);
             }
         }
     }
@@ -6876,7 +6897,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             shortMsg, longMsg, timeMillis, crashInfo.stackTrace)) {
                         Slog.w(TAG, "Force-killing crashed app " + name
                                 + " at watcher's request");
-                        Process.killProcess(pid);
+                        killProcess(r, pid);
                         return;
                     }
                 } catch (RemoteException e) {
@@ -8228,7 +8249,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         + " in dying process " + proc.processName);
                 EventLog.writeEvent(EventLogTags.AM_KILL, capp.pid,
                         capp.processName, capp.setAdj, "dying provider " + proc.processName);
-                Process.killProcess(capp.pid);
+                killProcess(capp, capp.pid);
             }
         }
         
@@ -12001,7 +12022,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             + " during " + realtimeSince);
                     EventLog.writeEvent(EventLogTags.AM_KILL, app.pid,
                             app.processName, app.setAdj, "excessive wake lock");
-                    Process.killProcessQuiet(app.pid);
+                    killProcessQuiet(app, app.pid);
                 } else if (doCpuKills && uptimeSince > 0
                         && ((cputimeUsed*100)/uptimeSince) >= 50) {
                     synchronized (stats) {
@@ -12013,7 +12034,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             + " during " + uptimeSince);
                     EventLog.writeEvent(EventLogTags.AM_KILL, app.pid,
                             app.processName, app.setAdj, "excessive cpu");
-                    Process.killProcessQuiet(app.pid);
+                    killProcessQuiet(app, app.pid);
                 } else {
                     app.lastWakeTime = wtime;
                     app.lastCpuTime = app.curCpuTime;
@@ -12185,7 +12206,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             EventLog.writeEvent(EventLogTags.AM_KILL, app.pid,
                                     app.processName, app.setAdj, "too many background");
                             app.killedBackground = true;
-                            Process.killProcessQuiet(app.pid);
+                            killProcessQuiet(app, app.pid);
                         }
                     }
                 }
@@ -12216,7 +12237,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                         + (app.thread != null ? app.thread.asBinder() : null)
                         + ")\n");
                     if (app.pid > 0 && app.pid != MY_PID) {
-                        Process.killProcess(app.pid);
+                        killProcess(app, app.pid);
                     } else {
                         try {
                             app.thread.scheduleExit();
@@ -12282,7 +12303,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                             + (app.thread != null ? app.thread.asBinder() : null)
                             + ")\n");
                         if (app.pid > 0 && app.pid != MY_PID) {
-                            Process.killProcess(app.pid);
+                            killProcess(app, app.pid);
                         } else {
                             try {
                                 app.thread.scheduleExit();
@@ -12339,7 +12360,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                               + (app.thread != null ? app.thread.asBinder() : null)
                               + ")\n");
                         if (app.pid > 0 && app.pid != MY_PID) {
-                            Process.killProcess(app.pid);
+                            killProcess(app, app.pid);
                         } else {
                             try {
                                 app.thread.scheduleExit();
@@ -12460,8 +12481,9 @@ public final class ActivityManagerService extends ActivityManagerNative
                         throw new SecurityException("Process not debuggable: " + proc);
                     }
                 }
-            
+
                 proc.thread.profilerControl(start, path, fd);
+
                 fd = null;
                 return true;
             }

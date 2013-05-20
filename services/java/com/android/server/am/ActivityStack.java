@@ -92,7 +92,7 @@ public class ActivityStack {
     static final int PAUSE_TIMEOUT = 500;
 
     // How long we can hold the launch wake lock before giving up.
-    static final int LAUNCH_TIMEOUT = 10*1000;
+    static final int LAUNCH_TIMEOUT = 20*1000;
 
     // How long we wait until giving up on an activity telling us it has
     // finished destroying itself.

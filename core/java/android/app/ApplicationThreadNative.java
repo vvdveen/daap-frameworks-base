@@ -349,6 +349,8 @@ public abstract class ApplicationThreadNative extends Binder
             ParcelFileDescriptor fd = data.readInt() != 0
                     ? data.readFileDescriptor() : null;
             profilerControl(start, path, fd);
+            // Just use an empty reply
+            reply.writeNoException();
             return true;
         }
         
@@ -775,17 +777,23 @@ class ApplicationThreadProxy implements IApplicationThread {
     public void profilerControl(boolean start, String path,
             ParcelFileDescriptor fd) throws RemoteException {
         Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
         data.writeInterfaceToken(IApplicationThread.descriptor);
         data.writeInt(start ? 1 : 0);
         data.writeString(path);
+        
         if (fd != null) {
             data.writeInt(1);
             fd.writeToParcel(data, Parcelable.PARCELABLE_WRITE_RETURN_VALUE);
         } else {
             data.writeInt(0);
         }
-        mRemote.transact(PROFILER_CONTROL_TRANSACTION, data, null,
-                IBinder.FLAG_ONEWAY);
+
+        // Changed FLAG_ONEWAY to 0 to make this a blocking call. The reply
+        // parcel could probably be removed again.
+        mRemote.transact(PROFILER_CONTROL_TRANSACTION, data, reply, 0);
+        reply.readException();
+        reply.recycle();
         data.recycle();
     }
     

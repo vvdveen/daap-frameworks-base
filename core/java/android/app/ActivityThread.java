@@ -629,7 +629,12 @@ public final class ActivityThread {
             ProfilerControlData pcd = new ProfilerControlData();
             pcd.path = path;
             pcd.fd = fd;
-            queueOrSendMessage(H.PROFILER_CONTROL, pcd, start ? 1 : 0);
+  
+            // Handle stop requests immediately as the caller may be about to
+            // kill the process. We want to make sure that our trace files are
+            // closed when that happens.
+            if (!start) handleProfilerControl(start, pcd);
+            else queueOrSendMessage(H.PROFILER_CONTROL, pcd, start ? 1 : 0);
         }
 
         public void setSchedulingGroup(int group) {
