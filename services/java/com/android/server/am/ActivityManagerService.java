@@ -6514,6 +6514,8 @@ public final class ActivityManagerService extends ActivityManagerNative
         addErrorToDropBox("crash", r, null, null, null, null, null, crashInfo);
 
         crashApplication(r, crashInfo);
+
+        stopProfiler(r);
     }
 
     public void handleApplicationStrictModeViolation(
